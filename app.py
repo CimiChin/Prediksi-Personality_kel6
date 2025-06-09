@@ -10,7 +10,6 @@ from sklearn.preprocessing import LabelEncoder
 # ======================================================================================
 # KONFIGURASI HALAMAN & JUDUL
 # ======================================================================================
-# Mengatur konfigurasi halaman Streamlit. Ini harus menjadi perintah st pertama yang dijalankan.
 st.set_page_config(
     page_title="Prediksi Kepribadian Dashboard",
     page_icon="🧠",
@@ -21,18 +20,28 @@ st.set_page_config(
 # ======================================================================================
 # FUNGSI UNTUK MEMUAT & MEMPROSES DATA
 # ======================================================================================
-# @st.cache_data digunakan agar Streamlit tidak perlu memuat ulang data setiap kali ada interaksi dari pengguna.
-# Ini akan meningkatkan performa aplikasi secara signifikan.
 @st.cache_data
 def load_data():
     """Fungsi untuk memuat dan membersihkan data dari file CSV."""
     df = pd.read_csv('personality_dataset.csv')
-    
-    # Membuat salinan untuk menghindari SettingWithCopyWarning
     df_processed = df.copy()
 
+    # <<< PERUBAHAN DIMULAI DI SINI >>>
+    # Menangani nilai yang hilang (NaN) sebelum diproses lebih lanjut.
+    # Ini adalah langkah penting untuk mencegah error pada model.
+    for col in df_processed.columns:
+        if df_processed[col].isnull().sum() > 0: # Cek jika ada nilai NaN di kolom
+            # Jika kolomnya numerik, isi dengan MEDIAN
+            if pd.api.types.is_numeric_dtype(df_processed[col]):
+                median_val = df_processed[col].median()
+                df_processed[col].fillna(median_val, inplace=True)
+            # Jika kolomnya kategorikal/objek, isi dengan MODUS (nilai paling sering muncul)
+            else:
+                mode_val = df_processed[col].mode()[0]
+                df_processed[col].fillna(mode_val, inplace=True)
+    # <<< PERUBAHAN SELESAI DI SINI >>>
+
     # Menggunakan LabelEncoder untuk mengubah fitur kategorikal menjadi angka
-    # Ini penting karena model machine learning hanya bisa bekerja dengan angka.
     le = LabelEncoder()
     for col in ['Stage_fear', 'Drained_after_socializing', 'Personality']:
         df_processed[col] = le.fit_transform(df_processed[col])
@@ -43,39 +52,31 @@ def load_data():
 # ======================================================================================
 # FUNGSI UNTUK MELATIH MODEL
 # ======================================================================================
-# @st.cache_resource digunakan untuk menyimpan objek yang "berat" seperti model yang sudah dilatih.
 @st.cache_resource
 def train_models(data):
     """Fungsi untuk melatih model KNN dan Naive Bayes."""
-    # Memisahkan fitur (X) dan target (y)
     X = data.drop('Personality', axis=1)
     y = data['Personality']
-
-    # Membagi data menjadi data latih (80%) dan data uji (20%)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # --- Model K-Nearest Neighbors (KNN) ---
-    knn = KNeighborsClassifier(n_neighbors=5) # n_neighbors=5 adalah pilihan umum yang baik
+    knn = KNeighborsClassifier(n_neighbors=5)
     knn.fit(X_train, y_train)
     y_pred_knn = knn.predict(X_test)
     accuracy_knn = accuracy_score(y_test, y_pred_knn)
     report_knn = classification_report(y_test, y_pred_knn, target_names=['Introvert', 'Extrovert'])
 
-    # --- Model Naive Bayes (Gaussian) ---
     nb = GaussianNB()
     nb.fit(X_train, y_train)
     y_pred_nb = nb.predict(X_test)
     accuracy_nb = accuracy_score(y_test, y_pred_nb)
     report_nb = classification_report(y_test, y_pred_nb, target_names=['Introvert', 'Extrovert'])
 
-    # Mengembalikan model yang sudah dilatih dan hasil evaluasinya
     return knn, nb, accuracy_knn, report_knn, accuracy_nb, report_nb
 
 
 # ======================================================================================
 # MEMUAT DATA & MODEL
 # ======================================================================================
-# Memanggil fungsi yang sudah kita buat di atas
 df_raw, df_processed = load_data()
 model_knn, model_nb, acc_knn, report_knn, acc_nb, report_nb = train_models(df_processed)
 
@@ -83,7 +84,6 @@ model_knn, model_nb, acc_knn, report_knn, acc_nb, report_nb = train_models(df_pr
 # ======================================================================================
 # SIDEBAR / NAVIGASI
 # ======================================================================================
-# Membuat navigasi di sidebar untuk berpindah antar halaman
 st.sidebar.title("Navigasi 🧭")
 page = st.sidebar.radio("Pilih Halaman:", ["Analisis Data (EDA)", "Hasil Pelatihan Model", "Lakukan Prediksi"])
 
@@ -96,20 +96,16 @@ if page == "Analisis Data (EDA)":
     
     st.divider()
 
-    # Menampilkan data mentah
     st.subheader("Tabel Dataset")
     st.dataframe(df_raw)
 
-    # Menampilkan statistik deskriptif
     st.subheader("Statistik Deskriptif")
     st.write(df_raw.describe())
     
     st.divider()
 
-    # Membuat visualisasi data
     st.subheader("Visualisasi Data")
     
-    # Menggunakan kolom agar tampilan lebih rapi
     col1, col2 = st.columns(2)
 
     with col1:
@@ -176,12 +172,9 @@ elif page == "Lakukan Prediksi":
     st.markdown("Isi formulir di bawah ini dengan kebiasaan Anda, dan model akan mencoba memprediksi apakah Anda cenderung **Introvert** atau **Extrovert**.")
     st.divider()
 
-    # Menggunakan st.form agar prediksi hanya berjalan saat tombol di-klik
     with st.form("prediction_form"):
         st.subheader("Isi Data Anda:")
         
-        # Membuat input form dengan slider dan selectbox
-        # Kolom untuk tata letak yang lebih baik
         col1, col2 = st.columns(2)
 
         with col1:
@@ -195,25 +188,20 @@ elif page == "Lakukan Prediksi":
             friends_circle_size = st.slider("Jumlah teman dekat (0-15)", 0, 15, 5)
             post_frequency = st.slider("Frekuensi posting di media sosial (0-10)", 0, 10, 4)
         
-        # Tombol untuk submit form
         submit_button = st.form_submit_button(label="✨ Lakukan Prediksi!")
 
     if submit_button:
-        # Mengubah input teks menjadi angka (0 atau 1) sesuai pemrosesan data
         stage_fear_num = 1 if stage_fear == "Ya" else 0
         drained_after_socializing_num = 1 if drained_after_socializing == "Ya" else 0
 
-        # Membuat DataFrame dari input pengguna
         input_data = pd.DataFrame([[
             time_spent_alone, stage_fear_num, social_event_attendance,
             going_outside, drained_after_socializing_num, friends_circle_size, post_frequency
         ]], columns=df_processed.drop('Personality', axis=1).columns)
 
-        # Melakukan prediksi dengan kedua model
         prediction_knn = model_knn.predict(input_data)
         prediction_nb = model_nb.predict(input_data)
         
-        # Menerjemahkan hasil prediksi (0/1) menjadi label (Introvert/Extrovert)
         result_knn = "Extrovert" if prediction_knn[0] == 1 else "Introvert"
         result_nb = "Extrovert" if prediction_nb[0] == 1 else "Introvert"
 
