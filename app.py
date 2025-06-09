@@ -6,6 +6,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import LabelEncoder
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # ======================================================================================
 # KONFIGURASI HALAMAN & JUDUL
@@ -132,6 +134,18 @@ if page == "Analisis Data (EDA)":
                              hover_data=['Time_spent_Alone'])
     st.plotly_chart(fig_scatter, use_container_width=True)
 
+# Di dalam if page == "Analisis Data (EDA)":
+# Letakkan ini setelah bagian Visualisasi Data
+
+st.divider()
+st.subheader("Peta Korelasi Antar Fitur")
+st.markdown("Heatmap ini menunjukkan bagaimana setiap fitur numerik berhubungan satu sama lain. Angka mendekati 1 atau -1 menunjukkan korelasi yang kuat.")
+
+# Membuat heatmap
+corr = df_processed.corr()
+fig, ax = plt.subplots(figsize=(10, 8))
+sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', ax=ax)
+st.pyplot(fig)
 
 # ======================================================================================
 # HALAMAN 2: HASIL PELATIHAN MODEL
